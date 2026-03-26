@@ -1,7 +1,1 @@
-# TODO: Add Grok API Integration
-
-- [x] Step 1: Update requirements.txt with openai>=1.0.0
-- [x] Step 2: Edit webapp.py to support Grok API using provided key
-- [x] Step 3: Install dependencies
-- [ ] Step 4: Test AI chatbot with Grok
-- [ ] Step 5: Complete
+# TODO: Secure Groq API Key Integration\n\n## Steps to Complete:\n\n### 1. [ ] Create .env file (template)\n### 2. [ ] Update root .gitignore (.env entry)\n### 3. [ ] Update requirements.txt (add python-dotenv)\n### 4. [ ] Edit webapp.py (imports, load_dotenv, remove UI input, update function calls & conditionals)\n### 5. [ ] Test app\n### 6. [ ] Mark complete & cleanup TODO.md\n\n**Status:** Starting implementation...\n\n**Instructions:**\n- User: Add your real `GROQ_API_KEY=gsk_...` to .env after creation.\n- Run `pip install -r requirements.txt` after step 3.\n- Test with `streamlit run webapp.py`.
