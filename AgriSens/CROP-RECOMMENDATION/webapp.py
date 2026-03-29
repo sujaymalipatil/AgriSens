@@ -993,9 +993,10 @@ def main():
                     "rainfall":    weather['rainfall']
                 })
 
-        desc   = ai["description"] if ai else info["desc"]
-        advice = ai["advice"]      if ai else info["advice"]
-        ferts  = ai["fertilizers"] if ai else [
+        desc   = ai.get("description", info["desc"])  if ai else info["desc"]
+        advice = ai.get("advice",      info["advice"]) if ai else info["advice"]
+        ferts  = ai.get("fertilizers", [])             if ai else [
+
             {"name": f["n"], "npk": "", "dosage": f["d"], "time": ""} for f in info["ferts"]
         ]
 
