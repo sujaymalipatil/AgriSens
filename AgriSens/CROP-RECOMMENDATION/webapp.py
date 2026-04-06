@@ -14,7 +14,7 @@ import plotly.graph_objects as go
 from sklearn.ensemble import RandomForestClassifier
 from streamlit_echarts import st_echarts, JsCode
 
-warnings.filterwarnings('ignore')
+warnings.filterwarnings("ignore")
 
 try:
     from dotenv import load_dotenv
@@ -23,7 +23,7 @@ except ImportError:
     pass
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", None)
-GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
+GROQ_MODEL   = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
 
 _groq_client = None
 if GROQ_API_KEY:
@@ -38,17 +38,17 @@ st.set_page_config(
     page_title="AgriSens AI",
     page_icon="🌾",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
 )
 
-# Initialize session state for Radar chart and animation delay
-if 'predicted_crop' not in st.session_state:
-    st.session_state.predicted_crop = 'rice'
-if 'anim_delay' not in st.session_state:
+if "predicted_crop" not in st.session_state:
+    st.session_state.predicted_crop = "rice"
+if "anim_delay" not in st.session_state:
     st.session_state.anim_delay = 100
 
-# ── GLOBAL STYLES ────────────────────────────────────────────
-st.markdown("""
+# ── STYLES — use st.html() to prevent CSS leaking as visible text ─
+CSS_BLOCK = """
+<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Bricolage+Grotesque:opsz,wght@12..96,300;12..96,400;12..96,500;12..96,600&family=DM+Mono:wght@300;400;500&display=swap');
 
@@ -57,13 +57,11 @@ html, body, [class*="css"] {
     font-family: 'Bricolage Grotesque', sans-serif;
     -webkit-font-smoothing: antialiased;
 }
-
 .stApp {
     background: #080f09;
     color: #f0ebe1;
     min-height: 100vh;
 }
-
 .stApp::before {
     content: '';
     position: fixed; inset: 0; z-index: 0;
@@ -72,7 +70,6 @@ html, body, [class*="css"] {
     pointer-events: none;
     opacity: 0.6;
 }
-
 .stApp::after {
     content: '';
     position: fixed; inset: 0; z-index: 0;
@@ -89,7 +86,8 @@ html, body, [class*="css"] {
     box-shadow: 4px 0 40px rgba(0,0,0,0.6) !important;
 }
 [data-testid="stSidebar"] * { color: #e8e0d0 !important; }
-[data-testid="stSidebar"] .stTextInput input, [data-testid="stSidebar"] .stNumberInput input {
+[data-testid="stSidebar"] .stTextInput input,
+[data-testid="stSidebar"] .stNumberInput input {
     background: rgba(255,255,255,0.04) !important;
     border: 1px solid rgba(74,160,79,0.2) !important;
     border-radius: 10px !important;
@@ -97,11 +95,11 @@ html, body, [class*="css"] {
     font-family: 'DM Mono', monospace !important;
     font-size: 13px !important;
 }
-[data-testid="stSidebar"] .stTextInput input:focus, [data-testid="stSidebar"] .stNumberInput input:focus {
+[data-testid="stSidebar"] .stTextInput input:focus,
+[data-testid="stSidebar"] .stNumberInput input:focus {
     border-color: rgba(74,160,79,0.5) !important;
     box-shadow: 0 0 0 3px rgba(74,160,79,0.08) !important;
 }
-
 [data-testid="stSidebar"] [data-testid="stSlider"] > div > div > div {
     background: rgba(74,160,79,0.25) !important;
     border-radius: 4px !important;
@@ -127,12 +125,6 @@ html, body, [class*="css"] {
     overflow: hidden !important;
     box-shadow: 0 4px 24px rgba(46,125,50,0.25), inset 0 1px 0 rgba(255,255,255,0.08) !important;
 }
-.stButton > button::before {
-    content: '';
-    position: absolute; inset: 0;
-    background: linear-gradient(180deg, rgba(255,255,255,0.06) 0%, transparent 100%);
-    pointer-events: none;
-}
 .stButton > button:hover {
     transform: translateY(-2px) scale(1.01) !important;
     box-shadow: 0 8px 32px rgba(46,125,50,0.40), 0 0 0 1px rgba(74,160,79,0.4), inset 0 1px 0 rgba(255,255,255,0.1) !important;
@@ -150,8 +142,7 @@ html, body, [class*="css"] {
 }
 [data-testid="stMetric"]::before {
     content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0;
+    position: absolute; top: 0; left: 0; right: 0;
     height: 1px;
     background: linear-gradient(90deg, transparent, rgba(74,160,79,0.3), transparent);
 }
@@ -228,8 +219,6 @@ hr { border: none !important; border-top: 1px solid rgba(74,160,79,0.08) !import
     70%  { transform: scale(1.05); }
     100% { transform: scale(1) translateY(0); opacity: 1; }
 }
-
-/* ── CHART ANIMATIONS ── */
 @keyframes chart-reveal {
     0%   { opacity: 0; transform: translateY(30px) scale(0.95); filter: blur(8px); }
     100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0px); }
@@ -240,15 +229,11 @@ hr { border: none !important; border-top: 1px solid rgba(74,160,79,0.08) !import
     transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), filter 0.4s cubic-bezier(0.16, 1, 0.3, 1) !important;
     will-change: transform, filter, opacity;
 }
-
-/* Stagger delay for side-by-side charts */
 [data-testid="column"]:nth-child(1) [data-testid="stPlotlyChart"] { animation-delay: 0.1s; }
 [data-testid="column"]:nth-child(2) [data-testid="stPlotlyChart"] { animation-delay: 0.35s; }
-
-/* Alpha-aware hover glow. This shadows the data INSIDE the transparent iframe! */
 [data-testid="stPlotlyChart"]:hover {
     transform: translateY(-6px) scale(1.015);
-    filter: drop-shadow(0px 12px 24px rgba(74, 160, 79, 0.3)) brightness(1.15) !important;
+    filter: drop-shadow(0px 12px 24px rgba(74,160,79,0.3)) brightness(1.15) !important;
     z-index: 10;
 }
 
@@ -295,8 +280,7 @@ hr { border: none !important; border-top: 1px solid rgba(74,160,79,0.08) !import
 }
 .sb-section::after {
     content: '';
-    flex: 1;
-    height: 1px;
+    flex: 1; height: 1px;
     background: rgba(74,160,79,0.15);
 }
 
@@ -309,7 +293,9 @@ hr { border: none !important; border-top: 1px solid rgba(74,160,79,0.08) !import
     border-radius: 14px;
     padding: 14px 18px;
     margin: 16px 0;
+    transition: transform 0.3s ease;
 }
+.gauge-wrap:hover { transform: scale(1.02); }
 .gauge-label-block { flex: 1; }
 .gauge-label {
     font-family: 'DM Mono', monospace;
@@ -331,13 +317,13 @@ hr { border: none !important; border-top: 1px solid rgba(74,160,79,0.08) !import
     border-radius: 14px;
     padding: 16px 18px;
     margin-bottom: 22px;
+    transition: all 0.3s ease;
 }
-.wx-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 14px;
+.wx-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(74,160,79,0.3);
 }
+.wx-header { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
 .wx-label {
     font-family: 'DM Mono', monospace;
     font-size: 9px;
@@ -365,16 +351,8 @@ hr { border: none !important; border-top: 1px solid rgba(74,160,79,0.08) !import
     gap: 8px;
     text-align: center;
 }
-.wx-cell-val {
-    font-family: 'DM Mono', monospace;
-    font-size: 16px;
-    color: #f0ebe1;
-}
-.wx-cell-lbl {
-    font-size: 10px;
-    color: rgba(240,235,225,0.3);
-    margin-top: 2px;
-}
+.wx-cell-val { font-family: 'DM Mono', monospace; font-size: 16px; color: #f0ebe1; }
+.wx-cell-lbl { font-size: 10px; color: rgba(240,235,225,0.3); margin-top: 2px; }
 
 .hero-wrap { padding: 24px 0 36px; }
 .hero-eyebrow {
@@ -424,11 +402,14 @@ hr { border: none !important; border-top: 1px solid rgba(74,160,79,0.08) !import
     font-size: 10px;
     letter-spacing: 0.5px;
     animation: badge-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+    cursor: default;
 }
+.badge:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(0,0,0,0.3); }
 .badge:nth-child(1) { animation-delay: 0.05s; }
-.badge:nth-child(2) { animation-delay: 0.1s;  }
+.badge:nth-child(2) { animation-delay: 0.10s; }
 .badge:nth-child(3) { animation-delay: 0.15s; }
-.badge:nth-child(4) { animation-delay: 0.2s;  }
+.badge:nth-child(4) { animation-delay: 0.20s; }
 .badge-green {
     background: rgba(74,160,79,0.1);
     border: 1px solid rgba(74,160,79,0.22);
@@ -449,7 +430,9 @@ hr { border: none !important; border-top: 1px solid rgba(74,160,79,0.08) !import
     text-align: right;
     position: relative;
     overflow: hidden;
+    transition: transform 0.4s ease;
 }
+.wx-hero:hover { transform: scale(1.03); }
 .wx-hero::before {
     content: '';
     position: absolute;
@@ -479,11 +462,7 @@ hr { border: none !important; border-top: 1px solid rgba(74,160,79,0.08) !import
     display: inline-block;
     color: rgba(240,235,225,0.6);
 }
-.wx-hero-desc {
-    font-size: 12px;
-    color: #a5d6a7;
-    margin-top: 8px;
-}
+.wx-hero-desc { font-size: 12px; color: #a5d6a7; margin-top: 8px; }
 
 .result-card {
     background: linear-gradient(135deg, rgba(14,32,16,0.9) 0%, rgba(8,20,10,0.95) 100%);
@@ -494,11 +473,12 @@ hr { border: none !important; border-top: 1px solid rgba(74,160,79,0.08) !import
     position: relative;
     overflow: hidden;
     animation: float-up 0.5s cubic-bezier(0.34, 1.2, 0.64, 1) backwards, glow-pulse 4s ease-in-out infinite;
+    transition: transform 0.4s ease;
 }
+.result-card:hover { transform: scale(1.01); }
 .result-card::before {
     content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0;
+    position: absolute; top: 0; left: 0; right: 0;
     height: 1px;
     background: linear-gradient(90deg, transparent, rgba(74,160,79,0.6), transparent);
 }
@@ -537,10 +517,7 @@ hr { border: none !important; border-top: 1px solid rgba(74,160,79,0.08) !import
     animation: shimmer 3s linear infinite;
 }
 
-.conf-row {
-    display: flex; align-items: center; gap: 16px;
-    margin-top: 20px;
-}
+.conf-row { display: flex; align-items: center; gap: 16px; margin-top: 20px; }
 .conf-label {
     font-family: 'DM Mono', monospace;
     font-size: 10px;
@@ -560,7 +537,7 @@ hr { border: none !important; border-top: 1px solid rgba(74,160,79,0.08) !import
     background: linear-gradient(90deg, #2e7d32, #66bb6a, #f5c842);
     border-radius: 4px;
     animation: sweep-in 1s cubic-bezier(0.34, 1.1, 0.64, 1) forwards 0.3s;
-    width: 0%;   /* start at zero; animation drives to var(--conf-w) */
+    width: 0%;
 }
 .conf-pct {
     font-family: 'DM Mono', monospace;
@@ -577,18 +554,21 @@ hr { border: none !important; border-top: 1px solid rgba(74,160,79,0.08) !import
     border-radius: 20px;
     padding: 26px 28px;
     margin-bottom: 16px;
-    transition: border-color 0.2s;
+    transition: all 0.3s ease;
     position: relative;
     overflow: hidden;
 }
 .info-card::before {
     content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0;
+    position: absolute; top: 0; left: 0; right: 0;
     height: 1px;
     background: linear-gradient(90deg, transparent, rgba(74,160,79,0.2), transparent);
 }
-.info-card:hover { border-color: rgba(74,160,79,0.22); }
+.info-card:hover {
+    border-color: rgba(74,160,79,0.22);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+}
 .info-card-label {
     font-family: 'DM Mono', monospace;
     font-size: 9px;
@@ -602,8 +582,7 @@ hr { border: none !important; border-top: 1px solid rgba(74,160,79,0.08) !import
 }
 .info-card-label::after {
     content: '';
-    flex: 1;
-    height: 1px;
+    flex: 1; height: 1px;
     background: rgba(74,160,79,0.1);
 }
 .info-card-body {
@@ -620,7 +599,13 @@ hr { border: none !important; border-top: 1px solid rgba(74,160,79,0.08) !import
     gap: 14px;
     padding: 13px 0;
     border-bottom: 1px solid rgba(255,255,255,0.05);
+    transition: background 0.2s ease;
+    border-radius: 8px;
+    margin: 0 -8px;
+    padding-left: 8px;
+    padding-right: 8px;
 }
+.fert-item:hover { background: rgba(255,255,255,0.04); }
 .fert-item:last-child { border-bottom: none; padding-bottom: 0; }
 .fert-num {
     width: 28px; height: 28px;
@@ -633,7 +618,9 @@ hr { border: none !important; border-top: 1px solid rgba(74,160,79,0.08) !import
     color: #a5d6a7;
     flex-shrink: 0;
     margin-top: 1px;
+    transition: all 0.3s ease;
 }
+.fert-item:hover .fert-num { background: rgba(74,160,79,0.22); transform: scale(1.1); }
 .fert-name { font-size: 14px; font-weight: 500; color: #f0ebe1; }
 .fert-detail {
     font-size: 11px;
@@ -643,12 +630,7 @@ hr { border: none !important; border-top: 1px solid rgba(74,160,79,0.08) !import
 }
 
 .section-hd { margin-bottom: 20px; }
-.section-title {
-    font-family: 'DM Serif Display', serif;
-    font-size: 28px;
-    color: #f0ebe1;
-    margin-bottom: 4px;
-}
+.section-title { font-family: 'DM Serif Display', serif; font-size: 28px; color: #f0ebe1; margin-bottom: 4px; }
 .section-sub {
     font-size: 12px;
     color: rgba(240,235,225,0.35);
@@ -665,7 +647,8 @@ hr { border: none !important; border-top: 1px solid rgba(74,160,79,0.08) !import
     padding: 13px 16px;
     position: relative;
     overflow: hidden;
-    transition: all 0.2s;
+    transition: all 0.3s ease;
+    cursor: default;
 }
 .stat-pill::before {
     content: '';
@@ -677,9 +660,10 @@ hr { border: none !important; border-top: 1px solid rgba(74,160,79,0.08) !import
     background: linear-gradient(90deg, transparent, rgba(232,160,32,0.4), transparent);
 }
 .stat-pill:hover {
-    border-color: rgba(74,160,79,0.2);
+    border-color: rgba(74,160,79,0.25);
     background: rgba(255,255,255,0.04);
-    transform: translateY(-1px);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.25);
 }
 .stat-pill-lbl {
     font-family: 'DM Mono', monospace;
@@ -707,6 +691,7 @@ hr { border: none !important; border-top: 1px solid rgba(74,160,79,0.08) !import
     letter-spacing: 1px;
     color: rgba(232,160,32,0.7);
     margin-top: 4px;
+    animation: pulse-dot 2s ease-in-out infinite;
 }
 
 .footer {
@@ -720,49 +705,51 @@ hr { border: none !important; border-top: 1px solid rgba(74,160,79,0.08) !import
 }
 .footer-dot { display: inline-block; margin: 0 10px; opacity: 0.4; }
 </style>
-""", unsafe_allow_html=True)
+"""
+
+# Inject styles using st.html() — prevents CSS from leaking as visible page text
+st.html(CSS_BLOCK)
 
 # ── PATHS ────────────────────────────────────────────────────
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-_default_csv = os.path.normpath(os.path.join(BASE_DIR, '..', 'Datasets', 'Crop_recommendation.csv'))
-CSV_PATH = os.getenv("AGRISENS_CSV_PATH", _default_csv)
-PKL_PATH = os.path.join(BASE_DIR, 'RF.pkl')
+BASE_DIR    = os.path.dirname(os.path.abspath(__file__))
+_default_csv = os.path.normpath(os.path.join(BASE_DIR, "..", "Datasets", "Crop_recommendation.csv"))
+CSV_PATH    = os.getenv("AGRISENS_CSV_PATH", _default_csv)
+PKL_PATH    = os.path.join(BASE_DIR, "RF.pkl")
 
 # ── CROP DATABASE ─────────────────────────────────────────────
 CROP_DB = {
-    "rice":        {"desc": "Thrives in waterlogged warm conditions. Ideal for clay-heavy, slightly acidic soils.",              "advice": "Maintain 5–10 cm standing water. Apply urea in split doses.",                           "ferts": [{"n": "Urea",              "d": "50 kg N/ha at transplanting"},    {"n": "DAP",            "d": "25 kg P₂O₅/ha basal dose"}]},
-    "maize":       {"desc": "Demands high nitrogen and moderate water. Best in deep, well-drained loam soils.",                  "advice": "Apply zinc sulfate if pH > 7. Ridge planting aids drainage.",                           "ferts": [{"n": "Urea",              "d": "120 kg/ha split 3×"},              {"n": "MOP",            "d": "60 kg K₂O/ha basal"}]},
-    "chickpea":    {"desc": "Nitrogen-fixing legume. Suits well-drained, neutral to slightly alkaline soils.",                   "advice": "Inoculate seeds with Rhizobium. Avoid waterlogging at all stages.",                   "ferts": [{"n": "SSP",               "d": "40 kg P₂O₅/ha at sowing"},        {"n": "Gypsum",         "d": "250 kg/ha for sulfur-deficient soils"}]},
-    "kidneybeans": {"desc": "Warm-season legume preferring loose, fertile soil with good drainage.",                             "advice": "Mulch to retain moisture. Excess nitrogen inhibits N-fixation.",                        "ferts": [{"n": "DAP",               "d": "30 kg/ha basal"},                 {"n": "Borax",          "d": "1 kg/ha for boron-deficient soils"}]},
-    "pigeonpeas":  {"desc": "Drought-tolerant legume suited to shallow, infertile soils.",                                       "advice": "Intercrop with cereals. Deep taproot means minimal irrigation needed.",                 "ferts": [{"n": "SSP",               "d": "50 kg/ha at sowing"},              {"n": "Rhizobium",      "d": "25 g/kg seed as inoculant"}]},
-    "mothbeans":   {"desc": "Extreme drought tolerance; grows in sandy, arid soils with very low rainfall.",                    "advice": "No irrigation in arid zones. Harvest before monsoon ends.",                             "ferts": [{"n": "Urea",              "d": "20 kg N/ha starter dose only"}]},
+    "rice":        {"desc": "Thrives in waterlogged warm conditions. Ideal for clay-heavy, slightly acidic soils.",              "advice": "Maintain 5–10 cm standing water. Apply urea in split doses.",                          "ferts": [{"n": "Urea",              "d": "50 kg N/ha at transplanting"},    {"n": "DAP",            "d": "25 kg P₂O₅/ha basal dose"}]},
+    "maize":       {"desc": "Demands high nitrogen and moderate water. Best in deep, well-drained loam soils.",                  "advice": "Apply zinc sulfate if pH > 7. Ridge planting aids drainage.",                          "ferts": [{"n": "Urea",              "d": "120 kg/ha split 3×"},              {"n": "MOP",            "d": "60 kg K₂O/ha basal"}]},
+    "chickpea":    {"desc": "Nitrogen-fixing legume. Suits well-drained, neutral to slightly alkaline soils.",                   "advice": "Inoculate seeds with Rhizobium. Avoid waterlogging at all stages.",                  "ferts": [{"n": "SSP",               "d": "40 kg P₂O₅/ha at sowing"},        {"n": "Gypsum",         "d": "250 kg/ha for sulfur-deficient soils"}]},
+    "kidneybeans": {"desc": "Warm-season legume preferring loose, fertile soil with good drainage.",                             "advice": "Mulch to retain moisture. Excess nitrogen inhibits N-fixation.",                       "ferts": [{"n": "DAP",               "d": "30 kg/ha basal"},                 {"n": "Borax",          "d": "1 kg/ha for boron-deficient soils"}]},
+    "pigeonpeas":  {"desc": "Drought-tolerant legume suited to shallow, infertile soils.",                                       "advice": "Intercrop with cereals. Deep taproot means minimal irrigation needed.",                "ferts": [{"n": "SSP",               "d": "50 kg/ha at sowing"},             {"n": "Rhizobium",      "d": "25 g/kg seed as inoculant"}]},
+    "mothbeans":   {"desc": "Extreme drought tolerance; grows in sandy, arid soils with very low rainfall.",                     "advice": "No irrigation in arid zones. Harvest before monsoon ends.",                            "ferts": [{"n": "Urea",              "d": "20 kg N/ha starter dose only"}]},
     "mungbean":    {"desc": "Short-duration legume improving soil structure. Moderate water needs.",                             "advice": "60–70 day cycle. Excellent green manure option post-harvest.",                         "ferts": [{"n": "DAP",               "d": "25 kg/ha at planting"},            {"n": "MOP",            "d": "20 kg/ha"}]},
-    "blackgram":   {"desc": "Grows in various soils; prefers well-drained fertile loam.",                                       "advice": "Avoid saline conditions. Grow post-kharif for double cropping.",                      "ferts": [{"n": "SSP",               "d": "40 kg/ha"},                        {"n": "Urea",           "d": "20 kg N/ha starter"}]},
-    "lentil":      {"desc": "Cool-season legume needing moderate, well-distributed rainfall.",                                  "advice": "Excellent for rotation post-cereal. Sensitive to frost.",                               "ferts": [{"n": "DAP",               "d": "40 kg/ha basal"},                  {"n": "Zinc Sulfate",   "d": "25 kg/ha if deficient"}]},
-    "pomegranate": {"desc": "Drought and salinity tolerant fruit crop. Thrives in semi-arid climates.",                         "advice": "Avoid waterlogging. Prune for open-center canopy to boost yield.",                    "ferts": [{"n": "Vermicompost",      "d": "10 kg/plant annually"},            {"n": "NPK 10:10:10",   "d": "500 g/plant in two splits"}]},
-    "banana":      {"desc": "High potassium demand; thrives in deep, rich, well-drained loam with high humidity.",              "advice": "Drip irrigation preferred. Remove lateral shoots to focus energy.",                   "ferts": [{"n": "Urea",              "d": "200 g/plant in 4 splits"},         {"n": "MOP",            "d": "300 g/plant — high K requirement"}]},
-    "mango":       {"desc": "Tropical tree crop adaptable to deep, well-drained sandy loam.",                                   "advice": "Prune after harvest. Apply micronutrients yearly for sustained yield.",                "ferts": [{"n": "NPK 12:32:16",      "d": "500 g/tree at flowering"},         {"n": "Urea",           "d": "1 kg/tree post-harvest"}]},
-    "grapes":      {"desc": "Prefers dry climate, deep soil, and excellent drainage. pH 5.5–7.0.",                              "advice": "Train on trellis. Potassium critical for sugar accumulation.",                         "ferts": [{"n": "Potassium Nitrate", "d": "20 g/vine fortnightly"},          {"n": "Calcium Nitrate","d": "15 g/vine bi-weekly"}]},
-    "watermelon":  {"desc": "Warm-season crop needing sandy loam, good drainage, and ample sunshine.",                          "advice": "Plant on raised beds. Regular irrigation critical during fruit set.",                  "ferts": [{"n": "DAP",               "d": "40 kg/ha basal"},                  {"n": "MOP",            "d": "60 kg/ha in 2 splits"}]},
-    "muskmelon":   {"desc": "Thrives in warm, arid zones with well-drained sandy soil. Frost-sensitive.",                       "advice": "Avoid overhead irrigation — promotes fungal disease.",                                 "ferts": [{"n": "Urea",              "d": "50 kg N/ha in splits"},            {"n": "SSP",            "d": "40 kg P/ha basal"}]},
-    "apple":       {"desc": "Requires cool winters for dormancy break. Prefers deep fertile well-drained loam.",                "advice": "Thin fruit to one per cluster. Apply lime if pH < 6.",                                "ferts": [{"n": "Urea",              "d": "500 g/tree in spring"},            {"n": "Borax",          "d": "0.3% foliar spray at bloom"}]},
-    "orange":      {"desc": "Subtropical citrus needing mild winters and consistent moisture.",                                 "advice": "Mulch tree basins. Monitor closely for citrus greening disease.",                     "ferts": [{"n": "NPK 15:15:15",      "d": "500 g/tree 4× per year"},          {"n": "Zinc Sulfate",   "d": "0.5% foliar 2× per year"}]},
-    "papaya":      {"desc": "Fast-growing tropical fruit with very high nutrient demand. Dislikes cold.",                       "advice": "High N in early stages; shift to K at fruiting stage.",                               "ferts": [{"n": "Urea",              "d": "200 g/plant monthly"},             {"n": "MOP",            "d": "150 g/plant at fruiting"}]},
-    "coconut":     {"desc": "Coastal crop adapted to high humidity, sandy loam, and saline tolerance.",                         "advice": "Apply green manure. Potassium lifts yield significantly.",                              "ferts": [{"n": "NPK 12:5:21",       "d": "1 kg/palm biannually"},            {"n": "Common Salt",    "d": "2 kg/palm as saline buffer"}]},
-    "cotton":      {"desc": "High water and potassium consumer. Best in deep black cotton (Vertisol) soils.",                   "advice": "Bollworm IPM essential. Avoid excess N — promotes vegetative growth.",                "ferts": [{"n": "Urea",              "d": "80 kg N/ha split 3×"},             {"n": "MOP",            "d": "60 kg K₂O/ha basal"}]},
-    "jute":        {"desc": "Thrives in humid tropical climate with loamy alluvial soil and moderate flooding.",                "advice": "Retting in slow-moving water for 2–3 weeks post-harvest.",                           "ferts": [{"n": "Urea",              "d": "60 kg N/ha"},                      {"n": "SSP",            "d": "40 kg P/ha basal"}]},
-    "coffee":      {"desc": "Shade-loving; thrives in volcanic, well-drained, slightly acidic soil.",                           "advice": "Maintain 50% shade cover. Mulch heavily. pH 5.5–6.5 is critical.",                   "ferts": [{"n": "NPK 17:17:17",      "d": "250 g/plant 2× yearly"},           {"n": "Borax",          "d": "0.2% foliar for berry fill"}]},
+    "blackgram":   {"desc": "Grows in various soils; prefers well-drained fertile loam.",                                        "advice": "Avoid saline conditions. Grow post-kharif for double cropping.",                      "ferts": [{"n": "SSP",               "d": "40 kg/ha"},                        {"n": "Urea",           "d": "20 kg N/ha starter"}]},
+    "lentil":      {"desc": "Cool-season legume needing moderate, well-distributed rainfall.",                                   "advice": "Excellent for rotation post-cereal. Sensitive to frost.",                              "ferts": [{"n": "DAP",               "d": "40 kg/ha basal"},                  {"n": "Zinc Sulfate",   "d": "25 kg/ha if deficient"}]},
+    "pomegranate": {"desc": "Drought and salinity tolerant fruit crop. Thrives in semi-arid climates.",                          "advice": "Avoid waterlogging. Prune for open-center canopy to boost yield.",                    "ferts": [{"n": "Vermicompost",      "d": "10 kg/plant annually"},            {"n": "NPK 10:10:10",   "d": "500 g/plant in two splits"}]},
+    "banana":      {"desc": "High potassium demand; thrives in deep, rich, well-drained loam with high humidity.",               "advice": "Drip irrigation preferred. Remove lateral shoots to focus energy.",                  "ferts": [{"n": "Urea",              "d": "200 g/plant in 4 splits"},         {"n": "MOP",            "d": "300 g/plant — high K requirement"}]},
+    "mango":       {"desc": "Tropical tree crop adaptable to deep, well-drained sandy loam.",                                    "advice": "Prune after harvest. Apply micronutrients yearly for sustained yield.",               "ferts": [{"n": "NPK 12:32:16",      "d": "500 g/tree at flowering"},         {"n": "Urea",           "d": "1 kg/tree post-harvest"}]},
+    "grapes":      {"desc": "Prefers dry climate, deep soil, and excellent drainage. pH 5.5–7.0.",                               "advice": "Train on trellis. Potassium critical for sugar accumulation.",                         "ferts": [{"n": "Potassium Nitrate", "d": "20 g/vine fortnightly"},          {"n": "Calcium Nitrate","d": "15 g/vine bi-weekly"}]},
+    "watermelon":  {"desc": "Warm-season crop needing sandy loam, good drainage, and ample sunshine.",                           "advice": "Plant on raised beds. Regular irrigation critical during fruit set.",                 "ferts": [{"n": "DAP",               "d": "40 kg/ha basal"},                  {"n": "MOP",            "d": "60 kg/ha in 2 splits"}]},
+    "muskmelon":   {"desc": "Thrives in warm, arid zones with well-drained sandy soil. Frost-sensitive.",                        "advice": "Avoid overhead irrigation — promotes fungal disease.",                                "ferts": [{"n": "Urea",              "d": "50 kg N/ha in splits"},            {"n": "SSP",            "d": "40 kg P/ha basal"}]},
+    "apple":       {"desc": "Requires cool winters for dormancy break. Prefers deep fertile well-drained loam.",                 "advice": "Thin fruit to one per cluster. Apply lime if pH < 6.",                                "ferts": [{"n": "Urea",              "d": "500 g/tree in spring"},            {"n": "Borax",          "d": "0.3% foliar spray at bloom"}]},
+    "orange":      {"desc": "Subtropical citrus needing mild winters and consistent moisture.",                                  "advice": "Mulch tree basins. Monitor closely for citrus greening disease.",                     "ferts": [{"n": "NPK 15:15:15",      "d": "500 g/tree 4× per year"},          {"n": "Zinc Sulfate",   "d": "0.5% foliar 2× per year"}]},
+    "papaya":      {"desc": "Fast-growing tropical fruit with very high nutrient demand. Dislikes cold.",                        "advice": "High N in early stages; shift to K at fruiting stage.",                               "ferts": [{"n": "Urea",              "d": "200 g/plant monthly"},             {"n": "MOP",            "d": "150 g/plant at fruiting"}]},
+    "coconut":     {"desc": "Coastal crop adapted to high humidity, sandy loam, and saline tolerance.",                          "advice": "Apply green manure. Potassium lifts yield significantly.",                              "ferts": [{"n": "NPK 12:5:21",       "d": "1 kg/palm biannually"},            {"n": "Common Salt",    "d": "2 kg/palm as saline buffer"}]},
+    "cotton":      {"desc": "High water and potassium consumer. Best in deep black cotton (Vertisol) soils.",                    "advice": "Bollworm IPM essential. Avoid excess N — promotes vegetative growth.",               "ferts": [{"n": "Urea",              "d": "80 kg N/ha split 3×"},             {"n": "MOP",            "d": "60 kg K₂O/ha basal"}]},
+    "jute":        {"desc": "Thrives in humid tropical climate with loamy alluvial soil and moderate flooding.",                 "advice": "Retting in slow-moving water for 2–3 weeks post-harvest.",                           "ferts": [{"n": "Urea",              "d": "60 kg N/ha"},                      {"n": "SSP",            "d": "40 kg P/ha basal"}]},
+    "coffee":      {"desc": "Shade-loving; thrives in volcanic, well-drained, slightly acidic soil.",                            "advice": "Maintain 50% shade cover. Mulch heavily. pH 5.5–6.5 is critical.",                   "ferts": [{"n": "NPK 17:17:17",      "d": "250 g/plant 2× yearly"},           {"n": "Borax",          "d": "0.2% foliar for berry fill"}]},
 }
 
 # ── DATA ─────────────────────────────────────────────────────
 @st.cache_data
 def load_data():
     if os.path.exists(CSV_PATH):
-        return pd.read_csv(CSV_PATH), False   
+        return pd.read_csv(CSV_PATH), False
     st.warning(
         f"⚠️ Dataset not found at `{CSV_PATH}`. "
-        "Set the AGRISENS_CSV_PATH env var or place the file at the default path. "
+        "Set AGRISENS_CSV_PATH env var or place the file at the default path. "
         "Running on synthetic data — predictions may be less accurate."
     )
     np.random.seed(42)
@@ -770,37 +757,40 @@ def load_data():
     for crop in CROP_DB.keys():
         for _ in range(100):
             rows.append({
-                "N": np.random.randint(0, 140), "P": np.random.randint(0, 145),
+                "N": np.random.randint(0, 140),
+                "P": np.random.randint(0, 145),
                 "K": np.random.randint(0, 205),
                 "temperature": round(np.random.uniform(8, 44), 1),
                 "humidity":    round(np.random.uniform(14, 100), 1),
                 "ph":          round(np.random.uniform(3.5, 9.5), 1),
                 "rainfall":    round(np.random.uniform(20, 300), 1),
-                "label":       crop
+                "label":       crop,
             })
     return pd.DataFrame(rows), True
+
 
 @st.cache_resource
 def load_model(_df, _version_token: str):
     if os.path.exists(PKL_PATH):
         try:
-            with open(PKL_PATH, 'rb') as f:
+            with open(PKL_PATH, "rb") as f:
                 return pickle.load(f)
         except Exception as e:
             st.warning(f"⚠️ RF.pkl incompatible — retraining. ({e})")
             os.remove(PKL_PATH)
-    X = _df[['N', 'P', 'K', 'temperature', 'humidity', 'ph', 'rainfall']]
-    y = _df['label']
+    X = _df[["N", "P", "K", "temperature", "humidity", "ph", "rainfall"]]
+    y = _df["label"]
     m = RandomForestClassifier(n_estimators=100, random_state=42)
     m.fit(X, y)
-    with open(PKL_PATH, 'wb') as f:
+    with open(PKL_PATH, "wb") as f:
         pickle.dump(m, f)
     st.success("✅ Model trained and cached.")
     return m
 
+
 df, is_synthetic = load_data()
 _df_token = str(pd.util.hash_pandas_object(df).sum())
-model = load_model(df, _df_token)
+model     = load_model(df, _df_token)
 
 # ── WEATHER ───────────────────────────────────────────────────
 RAINFALL_FALLBACK_MM = 100.0
@@ -809,26 +799,21 @@ RAINFALL_FALLBACK_MM = 100.0
 def get_weather(city: str) -> dict:
     try:
         wx  = requests.get(f"https://wttr.in/{city}?format=j1", timeout=5).json()
-        cur = wx['current_condition'][0]
-        temp     = float(cur['temp_C'])
-        humidity = float(cur['humidity'])
-
+        cur = wx["current_condition"][0]
+        temp     = float(cur["temp_C"])
+        humidity = float(cur["humidity"])
         daily_precip = sum(
-            float(h['precipMM'])
-            for w in wx.get('weather', [])[:1]   
-            for h in w.get('hourly', [])
+            float(h["precipMM"])
+            for w in wx.get("weather", [])[:1]
+            for h in w.get("hourly", [])
         )
-        rainfall_mm    = round(daily_precip, 1)
-        rainfall_label = "Today mm"
-
-        desc = cur['weatherDesc'][0]['value']
         return {
             "city":           city,
             "temp":           temp,
             "humidity":       humidity,
-            "rainfall":       rainfall_mm,
-            "rainfall_label": rainfall_label,
-            "desc":           desc,
+            "rainfall":       round(daily_precip, 1),
+            "rainfall_label": "Today mm",
+            "desc":           cur["weatherDesc"][0]["value"],
         }
     except Exception as e:
         st.sidebar.warning(f"⚠️ Weather fetch failed: {e}")
@@ -858,7 +843,7 @@ def get_ai_insights(crop: str, inputs: dict):
         )
         res = _groq_client.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
-            model=GROQ_MODEL
+            model=GROQ_MODEL,
         )
         raw   = re.sub(r"```json|```", "", res.choices[0].message.content).strip()
         match = re.search(r"\{.*\}", raw, re.S)
@@ -884,32 +869,32 @@ PLOTLY_LAYOUT = dict(
     font=dict(family="Bricolage Grotesque", color="rgba(240,235,225,0.6)", size=12),
     colorway=["#4aa04f", "#f5c842", "#4db6ac", "#8bc34a", "#ff9800", "#2e7d32", "#cddc39", "#00897b"],
     hoverlabel=dict(
-        bgcolor="rgba(8, 15, 9, 0.95)",
-        bordercolor="rgba(74, 160, 79, 0.3)",
-        font=dict(family="DM Mono", size=12, color="#f0ebe1")
+        bgcolor="rgba(8,15,9,0.95)",
+        bordercolor="rgba(74,160,79,0.3)",
+        font=dict(family="DM Mono", size=12, color="#f0ebe1"),
     ),
     xaxis=dict(showgrid=False, zeroline=False, linecolor="rgba(255,255,255,0.06)", tickfont=dict(size=11), automargin=True),
     yaxis=dict(gridcolor="rgba(255,255,255,0.03)", zeroline=False, linecolor="rgba(255,255,255,0.0)", tickfont=dict(size=11), automargin=True),
     margin=dict(l=20, r=20, t=60, b=20),
 )
-
 chart_title_font = dict(family="DM Serif Display", size=18, color="#f0ebe1")
 
 # ═════════════════════════════════════════════════════════════
 # MAIN
 # ═════════════════════════════════════════════════════════════
 def main():
+    # ── SIDEBAR ──────────────────────────────────────────────
     with st.sidebar:
         st.markdown("""
         <div class="brand-wrap">
           <div class="brand-name"><div class="brand-dot"></div>AgriSens</div>
-          <div class="brand-sub">AI Crop Intelligence · v2.2</div>
+          <div class="brand-sub">AI Crop Intelligence · v2.3</div>
         </div>
         """, unsafe_allow_html=True)
 
         st.markdown('<div class="sb-section">Location</div>', unsafe_allow_html=True)
         city_input = st.text_input("City name", value="Bangalore", placeholder="Enter city…", label_visibility="collapsed")
-        weather = get_weather(city_input)
+        weather    = get_weather(city_input)
 
         st.markdown(f"""
         <div class="wx-card">
@@ -926,32 +911,38 @@ def main():
         """, unsafe_allow_html=True)
 
         st.markdown('<div class="sb-section">Macronutrients</div>', unsafe_allow_html=True)
-        n = st.slider("Nitrogen (N) · kg/ha",  0,  140, 50)
-        p = st.slider("Phosphorus (P) · kg/ha", 0,  145, 40)
-        k = st.slider("Potassium (K) · kg/ha",  0,  205, 40)
+        n = st.slider("Nitrogen (N) · kg/ha",   0,   140, 50)
+        p = st.slider("Phosphorus (P) · kg/ha", 0,   145, 40)
+        k = st.slider("Potassium (K) · kg/ha",  0,   205, 40)
 
         st.markdown('<div class="sb-section">Soil Chemistry</div>', unsafe_allow_html=True)
         ph = st.slider("pH Level", 0.0, 14.0, 6.5, step=0.1)
 
         st.markdown('<div class="sb-section">Climate Inputs</div>', unsafe_allow_html=True)
         st.caption("Pre-filled from live weather — adjust if needed.")
-        temp_input     = st.slider("Temperature · °C",  0.0,  50.0, float(weather['temp']),     step=0.5)
-        humidity_input = st.slider("Humidity · %",      0.0, 100.0, float(weather['humidity']), step=1.0)
-        rainfall_input = st.slider("Rainfall · mm",     0.0, 300.0, float(weather['rainfall']), step=1.0)
+        temp_input     = st.slider("Temperature · °C", 0.0,  50.0, float(weather["temp"]),     step=0.5)
+        humidity_input = st.slider("Humidity · %",     0.0, 100.0, float(weather["humidity"]), step=1.0)
+        rainfall_input = st.slider("Rainfall · mm",    0.0, 300.0, float(weather["rainfall"]), step=1.0)
 
-        health  = min(100, int((n/140)*25 + (p/145)*25 + (k/205)*25 + (1 - abs(ph-6.5)/7.5)*25))
+        # Soil health gauge
+        health  = min(100, int((n/140)*25 + (p/145)*25 + (k/205)*25 + (1 - abs(ph - 6.5) / 7.5)*25))
         h_color = "#4aa04f" if health >= 65 else ("#ff9800" if health >= 40 else "#ef5350")
-        h_label = "Excellent" if health >= 75 else ("Good" if health >= 55 else ("Fair" if health >= 35 else "Poor"))
-
-        radius = 28
-        circ   = 2 * 3.14159 * radius
-        dash   = (health / 100) * circ
+        h_label = ("Excellent" if health >= 75 else ("Good" if health >= 55 else ("Fair" if health >= 35 else "Poor")))
+        radius  = 28
+        circ    = 2 * 3.14159 * radius
+        dash    = (health / 100) * circ
         st.markdown(f"""
         <div class="gauge-wrap">
           <svg width="64" height="64" viewBox="0 0 64 64">
             <circle cx="32" cy="32" r="{radius}" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="5"/>
-            <circle cx="32" cy="32" r="{radius}" fill="none" stroke="{h_color}" stroke-width="5" stroke-dasharray="{dash:.1f} {circ:.1f}" stroke-dashoffset="{circ/4:.1f}" stroke-linecap="round" style="filter:drop-shadow(0 0 4px {h_color}88)"/>
-            <text x="32" y="35" text-anchor="middle" font-family="DM Mono,monospace" font-size="11" fill="{h_color}" font-weight="500">{health}%</text>
+            <circle cx="32" cy="32" r="{radius}" fill="none" stroke="{h_color}" stroke-width="5"
+              stroke-dasharray="{dash:.1f} {circ:.1f}"
+              stroke-dashoffset="{circ/4:.1f}"
+              stroke-linecap="round"
+              style="filter:drop-shadow(0 0 4px {h_color}88)"/>
+            <text x="32" y="36" text-anchor="middle"
+              font-family="DM Mono,monospace" font-size="11"
+              fill="{h_color}" font-weight="500">{health}%</text>
           </svg>
           <div class="gauge-label-block">
             <div class="gauge-label">Soil Health</div>
@@ -963,41 +954,42 @@ def main():
         st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
         predict_clicked = st.button("🌱  Analyze & Predict Crop")
 
-        # --- ANIMATION CONTROLS ---
+        # Animation speed controls
         st.markdown('<div class="sb-section">Animation Speed</div>', unsafe_allow_html=True)
-        st.caption("Adjust chart stagger delay (ms)")
-        
-        def sync_from_num():
-            st.session_state.anim_delay = st.session_state.delay_num_input
+        st.caption("Chart stagger delay (ms)")
 
-        def sync_from_slider():
-            st.session_state.anim_delay = st.session_state.delay_slider_input
+        def _sync_from_num():
+            st.session_state.anim_delay = st.session_state._delay_num
 
-        col_slider, col_input = st.columns([2, 1])
-        with col_slider:
-            st.slider("Delay Slider", 0, 500, 
-                      value=st.session_state.anim_delay, 
-                      key="delay_slider_input", 
-                      on_change=sync_from_slider, 
+        def _sync_from_slider():
+            st.session_state.anim_delay = st.session_state._delay_slider
+
+        col_s, col_n = st.columns([2, 1])
+        with col_s:
+            st.slider("Delay", 0, 500,
+                      value=st.session_state.anim_delay,
+                      key="_delay_slider",
+                      on_change=_sync_from_slider,
                       label_visibility="collapsed")
-        with col_input:
-            st.number_input("Delay Input", 0, 500, 
-                            value=st.session_state.anim_delay, 
-                            key="delay_num_input", 
-                            on_change=sync_from_num, 
+        with col_n:
+            st.number_input("Delay num", 0, 500,
+                            value=st.session_state.anim_delay,
+                            key="_delay_num",
+                            on_change=_sync_from_num,
                             label_visibility="collapsed")
-        
-        delay_ms = st.session_state.anim_delay
 
+    delay_ms = st.session_state.anim_delay
+
+    # ── HERO ─────────────────────────────────────────────────
     col_hero, col_wx = st.columns([3, 1])
-
     with col_hero:
         data_note = " · synthetic data" if is_synthetic else ""
         st.markdown(f"""
         <div class="hero-wrap">
           <div class="hero-eyebrow">AI-powered crop intelligence</div>
           <div class="hero-title">Know what your<br><em>soil</em> wants to grow</div>
-          <div class="hero-sub">Input soil nutrient levels and let our ML model surface the ideal crop — trained on 2,200+ agronomic data points across 22 crop types.</div>
+          <div class="hero-sub">Input soil nutrient levels and let our ML model surface the ideal crop —
+            trained on 2,200+ agronomic data points across 22 crop types.</div>
           <div class="badge-row">
             <div class="badge badge-green">22 Crop Types</div>
             <div class="badge badge-green">Random Forest{data_note}</div>
@@ -1016,8 +1008,9 @@ def main():
         </div>
         """, unsafe_allow_html=True)
 
-    st.markdown('<hr>', unsafe_allow_html=True)
+    st.markdown("<hr>", unsafe_allow_html=True)
 
+    # ── STAT PILLS ───────────────────────────────────────────
     params = [
         ("Nitrogen",    n,              "kg/ha", False),
         ("Phosphorus",  p,              "kg/ha", False),
@@ -1027,16 +1020,21 @@ def main():
         ("Humidity",    humidity_input, "%",     True),
         ("Rainfall",    rainfall_input, "mm",    True),
     ]
-    
     pills_html = '<div class="stat-strip-row">'
     for lbl, val, unit, from_wx in params:
-        v_str      = f"{val:.1f}" if isinstance(val, float) else str(val)
-        wx_cls     = " wx-source" if from_wx else ""
-        wx_sub     = '<div class="wx-badge">⬡ weather</div>' if from_wx else ""
-        pills_html += f'<div class="stat-pill{wx_cls}"><div class="stat-pill-lbl">{lbl}</div><div class="stat-pill-val">{v_str}<span class="stat-pill-unit">{unit}</span></div>{wx_sub}</div>'
-    pills_html += '</div>'
+        v_str   = f"{val:.1f}" if isinstance(val, float) else str(val)
+        wx_cls  = " wx-source" if from_wx else ""
+        wx_sub  = '<div class="wx-badge">⬡ weather</div>' if from_wx else ""
+        pills_html += (
+            f'<div class="stat-pill{wx_cls}">'
+            f'<div class="stat-pill-lbl">{lbl}</div>'
+            f'<div class="stat-pill-val">{v_str}<span class="stat-pill-unit">{unit}</span></div>'
+            f'{wx_sub}</div>'
+        )
+    pills_html += "</div>"
     st.markdown(pills_html, unsafe_allow_html=True)
 
+    # ── PREDICTION ───────────────────────────────────────────
     if predict_clicked:
         features   = [[n, p, k, temp_input, humidity_input, ph, rainfall_input]]
         crop       = model.predict(features)[0]
@@ -1050,7 +1048,11 @@ def main():
         if _groq_client:
             with st.spinner("Consulting AI…"):
                 ai = get_ai_insights(crop, {
-                    "N": n, "P": p, "K": k, "temperature": temp_input, "humidity": humidity_input, "ph": ph, "rainfall": rainfall_input,
+                    "N": n, "P": p, "K": k,
+                    "temperature": temp_input,
+                    "humidity":    humidity_input,
+                    "ph":          ph,
+                    "rainfall":    rainfall_input,
                 })
 
         desc   = ai.get("description", info["desc"])  if isinstance(ai, dict) else info["desc"]
@@ -1074,11 +1076,17 @@ def main():
         col_l, col_r = st.columns(2)
         with col_l:
             st.markdown(f"""
-            <div class="info-card"><div class="info-card-label">About This Crop</div><div class="info-card-body">{desc}</div></div>
+            <div class="info-card">
+              <div class="info-card-label">About This Crop</div>
+              <div class="info-card-body">{desc}</div>
+            </div>
             """, unsafe_allow_html=True)
         with col_r:
             st.markdown(f"""
-            <div class="info-card"><div class="info-card-label">Soil Advice</div><div class="info-card-body">{advice}</div></div>
+            <div class="info-card">
+              <div class="info-card-label">Soil Advice</div>
+              <div class="info-card-body">{advice}</div>
+            </div>
             """, unsafe_allow_html=True)
 
         fert_items = ""
@@ -1088,36 +1096,48 @@ def main():
             fert_items += f"""
             <div class="fert-item">
               <div class="fert-num">{i:02d}</div>
-              <div><div class="fert-name">{f.get('name', '—')}{npk_part}</div><div class="fert-detail">{f.get('dosage', '—')}{time_part}</div></div>
+              <div>
+                <div class="fert-name">{f.get('name','—')}{npk_part}</div>
+                <div class="fert-detail">{f.get('dosage','—')}{time_part}</div>
+              </div>
             </div>"""
 
         st.markdown(f"""
-        <div class="info-card"><div class="info-card-label">Fertilizer Recommendations</div><div class="fert-list">{fert_items}</div></div>
+        <div class="info-card">
+          <div class="info-card-label">Fertilizer Recommendations</div>
+          <div class="fert-list">{fert_items}</div>
+        </div>
         """, unsafe_allow_html=True)
 
+        # Top-5 alternatives chart
         top5_idx   = np.argsort(probs)[::-1][:5]
         top5_crops = [model.classes_[i].capitalize() for i in top5_idx][::-1]
         top5_probs = [round(float(probs[i]) * 100, 1) for i in top5_idx][::-1]
 
-        options = {
+        options_top5 = {
             "backgroundColor": "transparent",
-            "animationDuration": 1800, 
-            "animationEasing": "elasticOut",
-            "animationDelay": JsCode(f"function(idx) {{ return idx * {delay_ms}; }}").js_code,
-            "grid": {"left": "3%", "right": "12%", "bottom": "3%", "top": "10%", "containLabel": True},
-            "xAxis": {"type": "value", "show": False, "max": 100},
-            "yAxis": {"type": "category", "data": top5_crops, "axisLine": {"show": False}, "axisTick": {"show": False}, "axisLabel": {"color": "rgba(240,235,225,0.7)", "fontFamily": "DM Mono", "fontSize": 12}},
-            "series": [{"data": top5_probs, "type": "bar", "itemStyle": {"color": "#4aa04f", "borderRadius": [0, 4, 4, 0]}, "label": {"show": True, "position": "right", "formatter": "{c}%", "color": "#f0ebe1", "fontFamily": "DM Mono"}}]
+            "animationDuration": 1800,
+            "animationEasing":   "elasticOut",
+            "animationDelay":    JsCode(f"function(idx){{return idx*{delay_ms};}}").js_code,
+            "grid":   {"left": "3%", "right": "12%", "bottom": "3%", "top": "10%", "containLabel": True},
+            "xAxis":  {"type": "value", "show": False, "max": 100},
+            "yAxis":  {
+                "type": "category", "data": top5_crops,
+                "axisLine": {"show": False}, "axisTick": {"show": False},
+                "axisLabel": {"color": "rgba(240,235,225,0.7)", "fontFamily": "DM Mono", "fontSize": 12},
+            },
+            "series": [{
+                "data": top5_probs, "type": "bar",
+                "itemStyle": {"color": "#4aa04f", "borderRadius": [0, 4, 4, 0]},
+                "label": {"show": True, "position": "right", "formatter": "{c}%",
+                          "color": "#f0ebe1", "fontFamily": "DM Mono"},
+            }],
         }
+        st.markdown('<div style="font-family:\'DM Serif Display\',serif;font-size:18px;color:#f0ebe1;margin-bottom:-10px;margin-left:10px;">Top 5 Alternatives</div>', unsafe_allow_html=True)
+        st_echarts(options=options_top5, height="240px")
 
-        st.markdown('<div style="font-family: \'DM Serif Display\', serif; font-size: 18px; color: #f0ebe1; margin-bottom: -10px; margin-left: 10px;">Top 5 Alternatives</div>', unsafe_allow_html=True)
-        st_echarts(options=options, height="240px")
-
-
-    # ─────────────────────────────────────────────────────────
-    # DATA TABS
-    # ─────────────────────────────────────────────────────────
-    st.markdown('<hr>', unsafe_allow_html=True)
+    # ── DATA EXPLORER ────────────────────────────────────────
+    st.markdown("<hr>", unsafe_allow_html=True)
     st.markdown("""
     <div class="section-hd">
       <div class="section-title">Data Explorer</div>
@@ -1129,229 +1149,184 @@ def main():
 
     with tab1:
         c1, c2 = st.columns(2)
-        
-        # --- 1. Records per Crop (ECharts) ---
-        counts = df['label'].value_counts().reset_index()
-        counts.columns = ['Crop', 'Count']
-        
-        options_fig1 = {
+
+        counts = df["label"].value_counts().reset_index()
+        counts.columns = ["Crop", "Count"]
+        options_dist = {
             "backgroundColor": "transparent",
-            "animationDuration": 2000, 
-            "animationEasing": "cubicInOut",
-            "animationDelay": JsCode(f"function(idx) {{ return idx * {delay_ms}; }}").js_code,
-            "tooltip": {
-                "trigger": "axis", "backgroundColor": "rgba(8, 15, 9, 0.95)", "borderColor": "rgba(74, 160, 79, 0.3)",
-                "textStyle": {"color": "#f0ebe1", "fontFamily": "DM Mono", "fontSize": 12}
-            },
-            "grid": {"left": "3%", "right": "3%", "bottom": "5%", "top": "10%", "containLabel": True},
-            "xAxis": {
-                "type": "category", "data": counts['Crop'].tolist(),
-                "axisLabel": {"rotate": 45, "color": "rgba(240,235,225,0.6)", "fontFamily": "Bricolage Grotesque", "fontSize": 11},
-                "axisTick": {"show": False}, "axisLine": {"lineStyle": {"color": "rgba(255,255,255,0.06)"}}
-            },
-            "yAxis": {
-                "type": "value", "splitLine": {"lineStyle": {"color": "rgba(255,255,255,0.03)"}},
-                "axisLabel": {"color": "rgba(240,235,225,0.6)", "fontFamily": "Bricolage Grotesque", "fontSize": 11}
-            },
-            "series": [{"data": counts['Count'].tolist(), "type": "bar", "itemStyle": {"color": "#4aa04f", "borderRadius": [4, 4, 0, 0]}}]
-        }
-        
-        c1.markdown('<div style="font-family: \'DM Serif Display\', serif; font-size: 18px; color: #f0ebe1; margin-bottom: 5px;">Records per Crop</div>', unsafe_allow_html=True)
-        with c1:
-            st_echarts(options=options_fig1, height="320px")
-
-        # --- 2. Average pH by Crop (Distributed Column Chart) ---
-        avg_ph = df.groupby('label')['ph'].mean().reset_index().rename(columns={'ph': 'Avg pH'})
-        
-        # Custom JS color function for the Distributed look
-        colors_js = JsCode("""
-        function(params) {
-            var colorList = ['#4aa04f', '#f5c842', '#4db6ac', '#8bc34a', '#ff9800', '#2e7d32', '#cddc39', '#00897b', '#e53935', '#8e24aa', '#3949ab', '#039be5', '#00acc1', '#43a047', '#7cb342', '#c0ca33', '#fdd835', '#ffb300', '#fb8c00', '#f4511e', '#6d4c41', '#757575'];
-            return colorList[params.dataIndex % colorList.length];
-        }
-        """).js_code
-
-        options_fig2 = {
-            "backgroundColor": "transparent",
-            "animationDuration": 2000, 
-            "animationEasing": "cubicOut",
-            # Zig-zag pattern utilizing the dynamic delay input
-            "animationDelay": JsCode(f"""
-                function(idx) {{ 
-                    return (idx % 2 === 0 ? 0 : 500) + (idx * {int(delay_ms * 0.2)}); 
-                }}
-            """).js_code,
-            "tooltip": {
-                "trigger": "axis", "backgroundColor": "rgba(8, 15, 9, 0.95)", "borderColor": "rgba(74, 160, 79, 0.3)",
-                "textStyle": {"color": "#f0ebe1", "fontFamily": "DM Mono", "fontSize": 12}
-            },
-            "grid": {"left": "3%", "right": "3%", "bottom": "5%", "top": "10%", "containLabel": True},
-            "xAxis": {
-                "type": "category", "data": avg_ph['label'].tolist(),
-                "axisLabel": {"rotate": 45, "color": "rgba(240,235,225,0.6)", "fontFamily": "Bricolage Grotesque", "fontSize": 11},
-                "axisTick": {"show": False}, "axisLine": {"lineStyle": {"color": "rgba(255,255,255,0.06)"}}
-            },
-            "yAxis": {
-                "type": "value", "splitLine": {"lineStyle": {"color": "rgba(255,255,255,0.03)"}},
-                "axisLabel": {"color": "rgba(240,235,225,0.6)", "fontFamily": "Bricolage Grotesque", "fontSize": 11}
-            },
-            "series": [{
-                "data": [round(val, 2) for val in avg_ph['Avg pH'].tolist()],
-                "type": "bar",
-                "itemStyle": {"color": colors_js, "borderRadius": [4, 4, 0, 0]}
-            }]
-        }
-        
-        c2.markdown('<div style="font-family: \'DM Serif Display\', serif; font-size: 18px; color: #f0ebe1; margin-bottom: 5px;">Average pH by Crop</div>', unsafe_allow_html=True)
-        with c2:
-            st_echarts(options=options_fig2, height="320px")
-
-
-    with tab2:
-        # --- 3. Temperature Range per Crop (Range Column Chart) ---
-        temp_range = df.groupby('label')['temperature'].agg(min_temp='min', max_temp='max').reset_index()
-        bases = temp_range['min_temp'].round(1).tolist()
-        ranges = (temp_range['max_temp'] - temp_range['min_temp']).round(1).tolist()
-        labels = temp_range['label'].tolist()
-
-        options_fig3 = {
-            "backgroundColor": "transparent",
+            "animationDuration": 2000,
+            "animationEasing":   "cubicInOut",
+            "animationDelay":    JsCode(f"function(idx){{return idx*{delay_ms};}}").js_code,
             "tooltip": {
                 "trigger": "axis",
-                "axisPointer": {"type": "shadow"},
-                "backgroundColor": "rgba(8, 15, 9, 0.95)",
-                "borderColor": "rgba(74, 160, 79, 0.3)",
+                "backgroundColor": "rgba(8,15,9,0.95)", "borderColor": "rgba(74,160,79,0.3)",
                 "textStyle": {"color": "#f0ebe1", "fontFamily": "DM Mono", "fontSize": 12},
-                "formatter": JsCode("""
-                    function(params) {
-                        var min = params[0].value;
-                        var range = params[1].value;
-                        var max = (min + range).toFixed(1);
-                        return params[0].name + '<br/>Min: ' + min + ' °C<br/>Max: ' + max + ' °C';
-                    }
-                """).js_code
+            },
+            "grid": {"left": "3%", "right": "3%", "bottom": "5%", "top": "10%", "containLabel": True},
+            "xAxis": {
+                "type": "category", "data": counts["Crop"].tolist(),
+                "axisLabel": {"rotate": 45, "color": "rgba(240,235,225,0.6)", "fontFamily": "Bricolage Grotesque", "fontSize": 11},
+                "axisTick": {"show": False}, "axisLine": {"lineStyle": {"color": "rgba(255,255,255,0.06)"}},
+            },
+            "yAxis": {
+                "type": "value",
+                "splitLine": {"lineStyle": {"color": "rgba(255,255,255,0.03)"}},
+                "axisLabel": {"color": "rgba(240,235,225,0.6)", "fontFamily": "Bricolage Grotesque", "fontSize": 11},
+            },
+            "series": [{"data": counts["Count"].tolist(), "type": "bar",
+                        "itemStyle": {"color": "#4aa04f", "borderRadius": [4, 4, 0, 0]}}],
+        }
+        c1.markdown('<div style="font-family:\'DM Serif Display\',serif;font-size:18px;color:#f0ebe1;margin-bottom:5px;">Records per Crop</div>', unsafe_allow_html=True)
+        with c1:
+            st_echarts(options=options_dist, height="320px")
+
+        avg_ph = df.groupby("label")["ph"].mean().reset_index().rename(columns={"ph": "Avg pH"})
+        colors_js = JsCode("""function(p){
+            var c=['#4aa04f','#f5c842','#4db6ac','#8bc34a','#ff9800','#2e7d32','#cddc39','#00897b',
+                   '#e53935','#8e24aa','#3949ab','#039be5','#00acc1','#43a047','#7cb342','#c0ca33',
+                   '#fdd835','#ffb300','#fb8c00','#f4511e','#6d4c41','#757575'];
+            return c[p.dataIndex%c.length];}""").js_code
+        options_ph = {
+            "backgroundColor": "transparent",
+            "animationDuration": 2000,
+            "animationEasing":   "cubicOut",
+            "animationDelay":    JsCode(f"function(idx){{return (idx%2===0?0:500)+(idx*{int(delay_ms*0.2)});}}").js_code,
+            "tooltip": {
+                "trigger": "axis",
+                "backgroundColor": "rgba(8,15,9,0.95)", "borderColor": "rgba(74,160,79,0.3)",
+                "textStyle": {"color": "#f0ebe1", "fontFamily": "DM Mono", "fontSize": 12},
+            },
+            "grid": {"left": "3%", "right": "3%", "bottom": "5%", "top": "10%", "containLabel": True},
+            "xAxis": {
+                "type": "category", "data": avg_ph["label"].tolist(),
+                "axisLabel": {"rotate": 45, "color": "rgba(240,235,225,0.6)", "fontFamily": "Bricolage Grotesque", "fontSize": 11},
+                "axisTick": {"show": False}, "axisLine": {"lineStyle": {"color": "rgba(255,255,255,0.06)"}},
+            },
+            "yAxis": {
+                "type": "value",
+                "splitLine": {"lineStyle": {"color": "rgba(255,255,255,0.03)"}},
+                "axisLabel": {"color": "rgba(240,235,225,0.6)", "fontFamily": "Bricolage Grotesque", "fontSize": 11},
+            },
+            "series": [{"data": [round(v, 2) for v in avg_ph["Avg pH"].tolist()], "type": "bar",
+                        "itemStyle": {"color": colors_js, "borderRadius": [4, 4, 0, 0]}}],
+        }
+        c2.markdown('<div style="font-family:\'DM Serif Display\',serif;font-size:18px;color:#f0ebe1;margin-bottom:5px;">Average pH by Crop</div>', unsafe_allow_html=True)
+        with c2:
+            st_echarts(options=options_ph, height="320px")
+
+    with tab2:
+        temp_range = df.groupby("label")["temperature"].agg(min_temp="min", max_temp="max").reset_index()
+        bases  = temp_range["min_temp"].round(1).tolist()
+        ranges = (temp_range["max_temp"] - temp_range["min_temp"]).round(1).tolist()
+        labels = temp_range["label"].tolist()
+        options_temp = {
+            "backgroundColor": "transparent",
+            "tooltip": {
+                "trigger": "axis", "axisPointer": {"type": "shadow"},
+                "backgroundColor": "rgba(8,15,9,0.95)", "borderColor": "rgba(74,160,79,0.3)",
+                "textStyle": {"color": "#f0ebe1", "fontFamily": "DM Mono", "fontSize": 12},
+                "formatter": JsCode("""function(p){
+                    var mn=p[0].value, rng=p[1].value, mx=(mn+rng).toFixed(1);
+                    return p[0].name+'<br/>Min: '+mn+' °C<br/>Max: '+mx+' °C';}""").js_code,
             },
             "grid": {"left": "2%", "right": "2%", "bottom": "5%", "top": "15%", "containLabel": True},
             "xAxis": {
                 "type": "category", "data": labels,
                 "axisLabel": {"rotate": 45, "color": "rgba(240,235,225,0.6)", "fontFamily": "Bricolage Grotesque", "fontSize": 11},
-                "axisTick": {"show": False}, "axisLine": {"lineStyle": {"color": "rgba(255,255,255,0.06)"}}
+                "axisTick": {"show": False}, "axisLine": {"lineStyle": {"color": "rgba(255,255,255,0.06)"}},
             },
             "yAxis": {
                 "type": "value", "name": "°C",
-                "nameTextStyle": {"color": "rgba(240,235,225,0.4)", "fontFamily": "DM Mono", "padding": [0, 0, 0, 10]},
+                "nameTextStyle": {"color": "rgba(240,235,225,0.4)", "fontFamily": "DM Mono", "padding": [0,0,0,10]},
                 "splitLine": {"lineStyle": {"color": "rgba(255,255,255,0.03)"}},
-                "axisLabel": {"color": "rgba(240,235,225,0.6)", "fontFamily": "Bricolage Grotesque", "fontSize": 11}
+                "axisLabel": {"color": "rgba(240,235,225,0.6)", "fontFamily": "Bricolage Grotesque", "fontSize": 11},
             },
             "series": [
-                {
-                    "name": "Base", "type": "bar", "stack": "Temp",
-                    "itemStyle": {"borderColor": "transparent", "color": "transparent"},
-                    "emphasis": {"itemStyle": {"borderColor": "transparent", "color": "transparent"}},
-                    "data": bases
-                },
-                {
-                    "name": "Range", "type": "bar", "stack": "Temp",
-                    "itemStyle": {"color": "#ff9800", "borderRadius": 4},
-                    "animationDuration": 2000, 
-                    "animationEasing": "cubicInOut",
-                    "animationDelay": JsCode(f"function(idx) {{ return idx * {delay_ms}; }}").js_code,
-                    "data": ranges
-                }
-            ]
+                {"name": "Base",  "type": "bar", "stack": "Temp",
+                 "itemStyle": {"borderColor": "transparent", "color": "transparent"},
+                 "emphasis": {"itemStyle": {"borderColor": "transparent", "color": "transparent"}},
+                 "data": bases},
+                {"name": "Range", "type": "bar", "stack": "Temp",
+                 "itemStyle": {"color": "#ff9800", "borderRadius": 4},
+                 "animationDuration": 2000, "animationEasing": "cubicInOut",
+                 "animationDelay": JsCode(f"function(idx){{return idx*{delay_ms};}}").js_code,
+                 "data": ranges},
+            ],
         }
-
-        st.markdown('<div style="font-family: \'DM Serif Display\', serif; font-size: 18px; color: #f0ebe1; margin-bottom: 5px;">Temperature Range by Crop</div>', unsafe_allow_html=True)
-        st_echarts(options=options_fig3, height="340px")
-
+        st.markdown('<div style="font-family:\'DM Serif Display\',serif;font-size:18px;color:#f0ebe1;margin-bottom:5px;">Temperature Range by Crop</div>', unsafe_allow_html=True)
+        st_echarts(options=options_temp, height="340px")
 
     with tab3:
-        # --- 4. Average NPK Profile per Crop (Stacked Column Chart) ---
-        avg_npk = df.groupby('label')[['N', 'P', 'K']].mean().reset_index()
-        
-        options_fig5 = {
+        avg_npk = df.groupby("label")[["N", "P", "K"]].mean().reset_index()
+        stagger = JsCode(f"function(idx){{return (idx%2===0?0:500)+(idx*{int(delay_ms*0.2)});}}").js_code
+        options_npk = {
             "backgroundColor": "transparent",
             "tooltip": {
                 "trigger": "axis", "axisPointer": {"type": "shadow"},
-                "backgroundColor": "rgba(8, 15, 9, 0.95)", "borderColor": "rgba(74, 160, 79, 0.3)",
-                "textStyle": {"color": "#f0ebe1", "fontFamily": "DM Mono", "fontSize": 12}
+                "backgroundColor": "rgba(8,15,9,0.95)", "borderColor": "rgba(74,160,79,0.3)",
+                "textStyle": {"color": "#f0ebe1", "fontFamily": "DM Mono", "fontSize": 12},
             },
             "legend": {
                 "data": ["Nitrogen (N)", "Phosphorus (P)", "Potassium (K)"],
                 "textStyle": {"color": "rgba(240,235,225,0.6)", "fontFamily": "Bricolage Grotesque", "fontSize": 12},
-                "top": "0%", "right": "1%"
+                "top": "0%", "right": "1%",
             },
             "grid": {"left": "2%", "right": "2%", "bottom": "5%", "top": "15%", "containLabel": True},
             "xAxis": {
-                "type": "category", "data": avg_npk['label'].tolist(),
+                "type": "category", "data": avg_npk["label"].tolist(),
                 "axisLabel": {"rotate": 45, "color": "rgba(240,235,225,0.6)", "fontFamily": "Bricolage Grotesque", "fontSize": 11},
-                "axisTick": {"show": False}, "axisLine": {"lineStyle": {"color": "rgba(255,255,255,0.06)"}}
+                "axisTick": {"show": False}, "axisLine": {"lineStyle": {"color": "rgba(255,255,255,0.06)"}},
             },
             "yAxis": {
                 "type": "value", "name": "kg/ha",
-                "nameTextStyle": {"color": "rgba(240,235,225,0.4)", "fontFamily": "DM Mono", "padding": [0, 0, 0, 10]},
+                "nameTextStyle": {"color": "rgba(240,235,225,0.4)", "fontFamily": "DM Mono", "padding": [0,0,0,10]},
                 "splitLine": {"lineStyle": {"color": "rgba(255,255,255,0.03)"}},
-                "axisLabel": {"color": "rgba(240,235,225,0.6)", "fontFamily": "Bricolage Grotesque", "fontSize": 11}
+                "axisLabel": {"color": "rgba(240,235,225,0.6)", "fontFamily": "Bricolage Grotesque", "fontSize": 11},
             },
             "series": [
-                {
-                    "name": "Nitrogen (N)", "type": "bar", "stack": "total", "data": [round(x) for x in avg_npk['N'].tolist()],
-                    "itemStyle": {"color": "#4aa04f"},
-                    "animationDuration": 2000, "animationEasing": "cubicOut",
-                    "animationDelay": JsCode(f"""
-                        function(idx) {{ 
-                            return (idx % 2 === 0 ? 0 : 500) + (idx * {int(delay_ms * 0.2)}); 
-                        }}
-                    """).js_code
-                },
-                {
-                    "name": "Phosphorus (P)", "type": "bar", "stack": "total", "data": [round(x) for x in avg_npk['P'].tolist()],
-                    "itemStyle": {"color": "#f5c842"},
-                    "animationDuration": 2000, "animationEasing": "cubicOut",
-                    "animationDelay": JsCode(f"""
-                        function(idx) {{ 
-                            return (idx % 2 === 0 ? 0 : 500) + (idx * {int(delay_ms * 0.2)}) + 150; 
-                        }}
-                    """).js_code 
-                },
-                {
-                    "name": "Potassium (K)", "type": "bar", "stack": "total", "data": [round(x) for x in avg_npk['K'].tolist()],
-                    "itemStyle": {"color": "#4db6ac", "borderRadius": [4, 4, 0, 0]},
-                    "animationDuration": 2000, "animationEasing": "cubicOut",
-                    "animationDelay": JsCode(f"""
-                        function(idx) {{ 
-                            return (idx % 2 === 0 ? 0 : 500) + (idx * {int(delay_ms * 0.2)}) + 300; 
-                        }}
-                    """).js_code 
-                }
-            ]
+                {"name": "Nitrogen (N)",   "type": "bar", "stack": "total",
+                 "data": [round(x) for x in avg_npk["N"].tolist()],
+                 "itemStyle": {"color": "#4aa04f"},
+                 "animationDuration": 2000, "animationEasing": "cubicOut",
+                 "animationDelay": stagger},
+                {"name": "Phosphorus (P)", "type": "bar", "stack": "total",
+                 "data": [round(x) for x in avg_npk["P"].tolist()],
+                 "itemStyle": {"color": "#f5c842"},
+                 "animationDuration": 2000, "animationEasing": "cubicOut",
+                 "animationDelay": JsCode(f"function(idx){{return (idx%2===0?0:500)+(idx*{int(delay_ms*0.2)})+150;}}").js_code},
+                {"name": "Potassium (K)",  "type": "bar", "stack": "total",
+                 "data": [round(x) for x in avg_npk["K"].tolist()],
+                 "itemStyle": {"color": "#4db6ac", "borderRadius": [4,4,0,0]},
+                 "animationDuration": 2000, "animationEasing": "cubicOut",
+                 "animationDelay": JsCode(f"function(idx){{return (idx%2===0?0:500)+(idx*{int(delay_ms*0.2)})+300;}}").js_code},
+            ],
         }
-        
-        st.markdown('<div style="font-family: \'DM Serif Display\', serif; font-size: 18px; color: #f0ebe1; margin-bottom: 5px;">Average NPK Profile per Crop</div>', unsafe_allow_html=True)
-        st_echarts(options=options_fig5, height="340px")
+        st.markdown('<div style="font-family:\'DM Serif Display\',serif;font-size:18px;color:#f0ebe1;margin-bottom:5px;">Average NPK Profile per Crop</div>', unsafe_allow_html=True)
+        st_echarts(options=options_npk, height="340px")
 
-        # Keeping the Correlation Heatmap and Violin Plot
         c1, c2 = st.columns(2)
-        fig6 = px.violin(df, x='label', y='ph', color='label', box=True)
-        fig6.update_traces(meanline_visible=True, points='outliers', jitter=0.05, line=dict(width=1.5), opacity=0.7)
-        fig6.update_layout(**PLOTLY_LAYOUT, showlegend=False, height=320, title=dict(text="pH Distribution by Crop", font=chart_title_font, x=0.01))
-        fig6.update_xaxes(tickangle=45, tickfont=dict(size=11))
-        c1.plotly_chart(fig6, use_container_width=True, theme=None)
+        fig_violin = px.violin(df, x="label", y="ph", color="label", box=True)
+        fig_violin.update_traces(meanline_visible=True, points="outliers", jitter=0.05, line=dict(width=1.5), opacity=0.7)
+        fig_violin.update_layout(**PLOTLY_LAYOUT, showlegend=False, height=320,
+                                 title=dict(text="pH Distribution by Crop", font=chart_title_font, x=0.01))
+        fig_violin.update_xaxes(tickangle=45, tickfont=dict(size=11))
+        c1.plotly_chart(fig_violin, use_container_width=True, theme=None)
 
-        corr = df[['N', 'P', 'K', 'temperature', 'humidity', 'ph', 'rainfall']].corr(numeric_only=True)
-        fig7 = go.Figure(go.Heatmap(
+        corr = df[["N","P","K","temperature","humidity","ph","rainfall"]].corr(numeric_only=True)
+        fig_heat = go.Figure(go.Heatmap(
             z=corr.values.tolist(), x=corr.columns.tolist(), y=corr.columns.tolist(),
-            colorscale=[[0, "#080f09"], [0.5, "#1e5c22"], [1, "#f5c842"]],
-            zmin=-1, zmax=1, texttemplate="%{z:.2f}",
-            textfont=dict(size=11, family="DM Mono", color="#f0ebe1"), hoverongaps=False,
+            colorscale=[[0,"#080f09"],[0.5,"#1e5c22"],[1,"#f5c842"]],
+            zmin=-1, zmax=1,
+            texttemplate="%{z:.2f}",
+            textfont=dict(size=11, family="DM Mono", color="#f0ebe1"),
+            hoverongaps=False,
         ))
-        fig7.update_layout(**PLOTLY_LAYOUT, height=320, title=dict(text="Feature Correlation Heatmap", font=chart_title_font, x=0.01))
-        c2.plotly_chart(fig7, use_container_width=True, theme=None)
+        fig_heat.update_layout(**PLOTLY_LAYOUT, height=320,
+                               title=dict(text="Feature Correlation Heatmap", font=chart_title_font, x=0.01))
+        c2.plotly_chart(fig_heat, use_container_width=True, theme=None)
 
-    # ─────────────────────────────────────────────────────────
-    # FOOTER
-    # ─────────────────────────────────────────────────────────
-    st.markdown('<hr>', unsafe_allow_html=True)
+    # ── FOOTER ───────────────────────────────────────────────
+    st.markdown("<hr>", unsafe_allow_html=True)
     st.markdown("""
     <div class="footer">
       AgriSens
@@ -1360,9 +1335,10 @@ def main():
       <span class="footer-dot">·</span>
       Streamlit + scikit-learn + Groq
       <span class="footer-dot">·</span>
-      v2.2
+      v2.3
     </div>
     """, unsafe_allow_html=True)
+
 
 if __name__ == "__main__":
     main()
