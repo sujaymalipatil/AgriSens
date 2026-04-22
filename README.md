@@ -3,7 +3,22 @@
 AgriSens is a full-stack smart farming platform that combines a static web landing page with a Streamlit-powered ML dashboard for crop recommendation. It helps farmers make data-driven decisions using soil parameters, real-time weather, and an optional AI-powered insight engine.
 
 > 🚀 **Live Demo:** https://crop-recomm.streamlit.app/  
-> 📄 **Published in:** https://irjaeh.com/
+> 📄 **Published in:** https://irjaeh.com/  
+> 🔗 **DOI:** https://doi.org/10.47392/IRJAEH.2026.0038
+
+---
+
+## 🏆 Recognition
+
+| Award | Details |
+|---|---|
+| 🥇 **Best Paper Presentation** | UG Category — iCREATE 2025, BITM & Global Conference Hub (Dec 27–28, 2025) |
+| 📰 **Published Research** | IRJAEH, Volume 04, Issue 01, January 2026 · e-ISSN: 2584-2137 · Pages 276–279 |
+
+**Certificates & Paper:**
+- 📜 [Certificate of Achievement — Best Paper Presentation](certificates/best-paper-award-iCREATE2025.pdf)
+- 📜 [Certificate of Publication — IRJAEH](certificates/publication-certificate-IRJAEH2026.pdf)
+- 📑 [Published Paper — Hybrid Deep Learning Model for Crop Yield Prediction](certificates/hybrid-cnn-rf-crop-yield-prediction-IRJAEH2026.pdf)
 
 ---
 
@@ -50,7 +65,7 @@ AgriSens is a full-stack smart farming platform that combines a static web landi
 
 ## 📊 Model Performance
 
-The Random Forest Classifier was trained and evaluated on the Crop Recommendation dataset:
+The hybrid CNN–Random Forest model was evaluated against traditional approaches including Linear Regression, Decision Tree, and LSTM:
 
 | Metric | Score |
 |---|---|
@@ -58,7 +73,7 @@ The Random Forest Classifier was trained and evaluated on the Crop Recommendatio
 | **R²** | **0.94** |
 | **RMSE** | **0.069** |
 
-The model generalises well across all 22 crop classes with minimal overfitting.
+The model outperforms standalone deep learning and classical ML models by combining CNN-based spatial feature extraction with Random Forest ensemble prediction.
 
 ---
 
@@ -69,6 +84,12 @@ AgriSens/
 │
 ├── README.md
 ├── .gitignore
+│
+├── certificates/
+│   ├── best-paper-award-iCREATE2025.pdf
+│   ├── publication-certificate-IRJAEH2026.pdf
+│   └── hybrid-cnn-rf-crop-yield-prediction-IRJAEH2026.pdf
+│
 ├── screenshots/
 │   ├── dashboard.png
 │   ├── prediction-result.png
@@ -186,18 +207,25 @@ The model was trained on the **Crop Recommendation Dataset** publicly available 
 
 ## 📄 Publication & Citation
 
-This project has been published. If you use AgriSens in your work, please cite:
-
-> Team AgriSens. *AgriSens: A Smart Farming Assistant with ML Crop Recommendation.*  
-> Published at IRJAEH — https://irjaeh.com/
+> **Sujay Malipatil, Sharanu Varnal, Shrimanthreddy, Dr. Amareshwari Patil**  
+> *Hybrid Deep Learning Model for Crop Yield Prediction Using CNN and Random Forest*  
+> International Research Journal on Advanced Engineering Hub (IRJAEH)  
+> Volume 04, Issue 01, January 2026 · Pages 276–279 · e-ISSN: 2584-2137  
+> 🔗 https://doi.org/10.47392/IRJAEH.2026.0038
 
 ```bibtex
-@misc{agrisens2024,
-  title   = {AgriSens: A Smart Farming Assistant with ML Crop Recommendation},
-  author  = {Sujay Malipatil and Team AgriSens},
-  year    = {2024},
-  url     = {https://github.com/sujaymalipatil/AgriSens},
-  note    = {Published in IRJAEH, https://irjaeh.com/}
+@article{malipatil2026hybrid,
+  title   = {Hybrid Deep Learning Model for Crop Yield Prediction Using CNN and Random Forest},
+  author  = {Malipatil, Sujay and Varnal, Sharanu and Shrimanthreddy and Patil, Amareshwari},
+  journal = {International Research Journal on Advanced Engineering Hub (IRJAEH)},
+  volume  = {4},
+  number  = {1},
+  pages   = {276--279},
+  year    = {2026},
+  month   = {January},
+  issn    = {2584-2137},
+  doi     = {10.47392/IRJAEH.2026.0038},
+  url     = {https://doi.org/10.47392/IRJAEH.2026.0038}
 }
 ```
 
@@ -216,4 +244,4 @@ This project has been published. If you use AgriSens in your work, please cite:
 
 ## 📄 License
 
-© Team AgriSens. All rights reserved.
+© Sujay Malipatil, Sharanu Varnal, Shrimanthreddy & Dr. Amareshwari Patil. All rights reserved.
