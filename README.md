@@ -2,7 +2,7 @@
 
 AgriSens is a full-stack smart farming platform that combines a static web landing page with a Streamlit-powered ML dashboard for crop recommendation. It helps farmers make data-driven decisions using soil parameters, real-time weather, and an optional AI-powered insight engine.
 
-> 🚀 **Live Demo:** https://crop-recomm.streamlit.app/  
+> 🚀 **Live Demo:** https://agrisens-ai.streamlit.app/
 > 📄 **Published in:** https://irjaeh.com/  
 > 🔗 **DOI:** https://doi.org/10.47392/IRJAEH.2026.0038
 
